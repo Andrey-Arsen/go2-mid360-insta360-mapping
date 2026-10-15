@@ -1,0 +1,102 @@
+<?xml version="1.0"?>
+<!-- Сделано scripts/mount_urdf.py из экспорта Fusion 360 (Untitled_description). Не править руками —
+     переэкспортировать из Fusion и запустить скрипт заново. Массы — из аргументов скрипта. -->
+<robot name="go2_sensor_mount">
+  <material name="mount_gray"><color rgba="0.82 0.82 0.84 1"/></material>
+  <material name="lidar_dark"><color rgba="0.18 0.18 0.2 1"/></material>
+  <material name="camera_black"><color rgba="0.08 0.08 0.09 1"/></material>
+
+  <link name="sensor_mount_link">
+    <inertial>
+      <origin xyz="0.004851 -0.000000 0.116853" rpy="0 0 0"/>
+      <mass value="0.8000"/>
+      <inertia ixx="4.508e-03" iyy="6.223e-03" izz="3.448e-03" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.038690 -0.000000 0.150706" rpy="0.000000 0.000000 1.570796"/>
+      <geometry><mesh filename="package://go2_sensor_mount/meshes/mount_base.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="mount_gray"/>
+    </visual>
+    <collision>
+      <origin xyz="0.004851 -0.000000 0.116853" rpy="0 0 0"/>
+      <geometry><box size="0.1968 0.1140 0.2337"/></geometry>
+    </collision>
+  </link>
+
+  <!-- Mid-360: кадр звена = система координат облака (руководство Livox: O на 47 мм над дном,
+       +X от разъёма, Z вверх). livox_frame — то же имя, что у livox_ros_driver2. -->
+  <link name="mid360_link">
+    <inertial>
+      <origin xyz="0.000000 0.000000 -0.016951" rpy="0 0 0"/>
+      <mass value="0.2650"/>
+      <inertia ixx="1.495e-04" iyy="1.495e-04" izz="1.400e-04" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="-0.045612 0.000109 0.018906" rpy="0.000000 0.000000 -1.570796"/>
+      <geometry><mesh filename="package://go2_sensor_mount/meshes/mid360.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="lidar_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0.000000 0.000000 -0.016951" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.0325" length="0.060"/></geometry>
+    </collision>
+  </link>
+  <joint name="mid360_joint" type="fixed">
+    <origin xyz="-0.006922 0.000109 0.131800" rpy="0.000000 0.000000 3.141593"/>
+    <parent link="sensor_mount_link"/>
+    <child link="mid360_link"/>
+  </joint>
+  <link name="livox_frame"/>
+  <joint name="livox_frame_joint" type="fixed">
+    <origin xyz="0.000000 0.000000 0.000000" rpy="0.000000 0.000000 0.000000"/>
+    <parent link="mid360_link"/>
+    <child link="livox_frame"/>
+  </joint>
+
+  <!-- Insta360 X5: кадр звена — середина между объективами, X к переднему объективу, Z вверх. -->
+  <link name="insta360_link">
+    <inertial>
+      <origin xyz="-0.000021 0.000018 -0.040937" rpy="0 0 0"/>
+      <mass value="0.2000"/>
+      <inertia ixx="2.936e-04" iyy="2.826e-04" izz="5.952e-05" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.043979 0.000018 -0.152187" rpy="0.000000 0.000000 1.570796"/>
+      <geometry><mesh filename="package://go2_sensor_mount/meshes/insta360_x5.stl" scale="0.001 0.001 0.001"/></geometry>
+      <material name="camera_black"/>
+    </visual>
+    <collision>
+      <origin xyz="-0.000021 0.000018 -0.040937" rpy="0 0 0"/>
+      <geometry><box size="0.0381 0.0460 0.1245"/></geometry>
+    </collision>
+  </link>
+  <joint name="insta360_joint" type="fixed">
+    <origin xyz="-0.005289 -0.000018 0.302893" rpy="0.000000 0.000000 0.000000"/>
+    <parent link="sensor_mount_link"/>
+    <child link="insta360_link"/>
+  </joint>
+  <link name="insta360_front"/>
+  <joint name="insta360_front_joint" type="fixed">
+    <origin xyz="0.017076 0.000010 0.000043" rpy="0.000000 0.000000 0.000000"/>
+    <parent link="insta360_link"/>
+    <child link="insta360_front"/>
+  </joint>
+  <link name="insta360_back"/>
+  <joint name="insta360_back_joint" type="fixed">
+    <origin xyz="-0.017076 -0.000010 -0.000043" rpy="0.000000 0.000000 3.141593"/>
+    <parent link="insta360_link"/>
+    <child link="insta360_back"/>
+  </joint>
+  <link name="insta360_front_optical"/>
+  <joint name="insta360_front_optical_joint" type="fixed">
+    <origin xyz="0.000000 0.000000 0.000000" rpy="-1.570796 0.000000 -1.570796"/>
+    <parent link="insta360_front"/>
+    <child link="insta360_front_optical"/>
+  </joint>
+  <link name="insta360_back_optical"/>
+  <joint name="insta360_back_optical_joint" type="fixed">
+    <origin xyz="0.000000 0.000000 0.000000" rpy="-1.570796 0.000000 -1.570796"/>
+    <parent link="insta360_back"/>
+    <child link="insta360_back_optical"/>
+  </joint>
+</robot>

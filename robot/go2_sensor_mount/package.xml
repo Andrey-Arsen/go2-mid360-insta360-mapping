@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go2_sensor_mount</name>
+  <version>0.1.0</version>
+  <description>Надстройка Go2: Jetson Orin Nano, Livox Mid-360, Insta360 X5 (из Fusion 360, scripts/mount_urdf.py)</description>
+  <maintainer email="user@example.com">user</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

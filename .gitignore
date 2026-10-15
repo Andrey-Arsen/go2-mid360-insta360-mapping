@@ -1,0 +1,16 @@
+# Записи, сессии и результаты — десятки гигабайт, получаются скриптами (см. README)
+data/
+out/
+scenes/reconstructed/
+
+# Сторонние проекты и ассеты — ставятся по README («Установка с нуля»)
+third_party/
+assets/isaac/
+.venv/
+
+# Сырой экспорт Fusion 360 (fusion2urdf); обработанная надстройка — robot/go2_sensor_mount/
+Untitled_description*/
+
+__pycache__/
+*.pyc
+*.log

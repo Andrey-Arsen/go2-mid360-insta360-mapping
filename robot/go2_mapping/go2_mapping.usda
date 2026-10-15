@@ -1,0 +1,185 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    endTimeCode = 1000000
+    metersPerUnit = 1
+    startTimeCode = 0
+    subLayers = [
+        @../../third_party/IsaacLegs/isaacsim_envs/gui/go2.usd@
+    ]
+    timeCodesPerSecond = 60
+    upAxis = "Z"
+)
+
+over "World"
+{
+    over "go2"
+    {
+        over "base" (
+            prepend apiSchemas = ["PhysicsMassAPI"]
+        )
+        {
+            point3f physics:centerOfMass = (0.012645954, 0.0000035285855, 0.026441049)
+            float3 physics:diagonalInertia = (0.048880707, 0.052127145, 0.0032464454)
+            float physics:mass = 8.186
+
+            def Xform "sensor_mount"
+            {
+                matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (-0.03445125829056811, 0, 0.06108768626895558, 1) )
+                uniform token[] xformOpOrder = ["xformOp:transform"]
+
+                def Xform "visuals" (
+                    prepend references = @./sensor_mount_geom.usdc@
+                )
+                {
+                }
+
+                def "colliders"
+                {
+                    def Cube "sensor_mount_link_0" (
+                        prepend apiSchemas = ["PhysicsCollisionAPI"]
+                    )
+                    {
+                        uniform token purpose = "guide"
+                        double size = 1
+                        matrix4d xformOp:transform = ( (0.1968, 0, 0, 0), (0, 0.114, 0, 0), (0, 0, 0.2337, 0), (0.004851, 0, 0.116853, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+                    }
+
+                    def Cylinder "mid360_link_0" (
+                        prepend apiSchemas = ["PhysicsCollisionAPI"]
+                    )
+                    {
+                        uniform token axis = "Z"
+                        double height = 0.06
+                        uniform token purpose = "guide"
+                        double radius = 0.0325
+                        matrix4d xformOp:transform = ( (-0.99999999999994, -3.464102066193935e-7, 0, 0), (3.464102066193935e-7, -0.99999999999994, 0, 0), (0, 0, 1, 0), (-0.006922, 0.000109, 0.114849, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+                    }
+
+                    def Cube "insta360_link_0" (
+                        prepend apiSchemas = ["PhysicsCollisionAPI"]
+                    )
+                    {
+                        uniform token purpose = "guide"
+                        double size = 1
+                        matrix4d xformOp:transform = ( (0.0381, 0, 0, 0), (0, 0.046, 0, 0), (0, 0, 0.1245, 0), (-0.0053100000000000005, 0, 0.261956, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+                    }
+                }
+
+                def "frames"
+                {
+                    def Xform "mid360_link"
+                    {
+                        matrix4d xformOp:transform = ( (-0.99999999999994, -3.464102066193935e-7, 0, 0), (3.464102066193935e-7, -0.99999999999994, 0, 0), (0, 0, 1, 0), (-0.006922, 0.000109, 0.1318, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+                    }
+
+                    def Xform "livox_frame"
+                    {
+                        matrix4d xformOp:transform = ( (-0.99999999999994, -3.464102066193935e-7, 0, 0), (3.464102066193935e-7, -0.99999999999994, 0, 0), (0, 0, 1, 0), (-0.006922, 0.000109, 0.1318, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+                        def Xform "Mid360" (
+                            prepend references = @../../third_party/Livox_MID360_IsaacSim/assets/petal_scan/standalone/Livox_MID360_Petal_Scan.usd@
+                        )
+                        {
+                            double3 xformOp:translate = (-0, -0, -0)
+                            uniform token[] xformOpOrder = ["xformOp:translate"]
+
+                            over "torso_link" (
+                                delete apiSchemas = ["PhysicsRigidBodyAPI"]
+                            )
+                            {
+                                over "mid360_imu" (
+                                    active = false
+                                )
+                                {
+                                }
+
+                                over "mid360_link"
+                                {
+                                    over "CAD"
+                                    {
+                                        token visibility = "invisible"
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    def Xform "insta360_link"
+                    {
+                        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (-0.005289, -0.000018, 0.302893, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+                    }
+
+                    def Xform "insta360_front"
+                    {
+                        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0.011787, -0.000008, 0.30293600000000004, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+                        def Camera "fisheye" (
+                            prepend apiSchemas = ["OmniLensDistortionFthetaAPI"]
+                        )
+                        {
+                            float2 clippingRange = (0.01, 1000)
+                            float omni:lensdistortion:ftheta:k0 = 0
+                            float omni:lensdistortion:ftheta:k1 = 0.0018180513
+                            float omni:lensdistortion:ftheta:k2 = 0
+                            float omni:lensdistortion:ftheta:k3 = 0
+                            float omni:lensdistortion:ftheta:k4 = 0
+                            float omni:lensdistortion:ftheta:maxFov = 200
+                            float omni:lensdistortion:ftheta:nominalHeight = 1920
+                            float omni:lensdistortion:ftheta:nominalWidth = 1920
+                            float2 omni:lensdistortion:ftheta:opticalCenter = (960, 960)
+                            token omni:lensdistortion:model = "ftheta"
+                            matrix4d xformOp:transform = ( (0, -1, 0, 0), (0, 0, 1, 0), (-1, 0, 0, 0), (0, 0, 0, 1) )
+                            uniform token[] xformOpOrder = ["xformOp:transform"]
+                        }
+                    }
+
+                    def Xform "insta360_back"
+                    {
+                        matrix4d xformOp:transform = ( (-0.99999999999994, -3.464102066193935e-7, 0, 0), (3.464102066193935e-7, -0.99999999999994, 0, 0), (0, 0, 1, 0), (-0.022365000000000003, -0.000028000000000000003, 0.30285, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+
+                        def Camera "fisheye" (
+                            prepend apiSchemas = ["OmniLensDistortionFthetaAPI"]
+                        )
+                        {
+                            float2 clippingRange = (0.01, 1000)
+                            float omni:lensdistortion:ftheta:k0 = 0
+                            float omni:lensdistortion:ftheta:k1 = 0.0018180513
+                            float omni:lensdistortion:ftheta:k2 = 0
+                            float omni:lensdistortion:ftheta:k3 = 0
+                            float omni:lensdistortion:ftheta:k4 = 0
+                            float omni:lensdistortion:ftheta:maxFov = 200
+                            float omni:lensdistortion:ftheta:nominalHeight = 1920
+                            float omni:lensdistortion:ftheta:nominalWidth = 1920
+                            float2 omni:lensdistortion:ftheta:opticalCenter = (960, 960)
+                            token omni:lensdistortion:model = "ftheta"
+                            matrix4d xformOp:transform = ( (0, -1, 0, 0), (0, 0, 1, 0), (-1, 0, 0, 0), (0, 0, 0, 1) )
+                            uniform token[] xformOpOrder = ["xformOp:transform"]
+                        }
+                    }
+
+                    def Xform "insta360_front_optical"
+                    {
+                        matrix4d xformOp:transform = ( (3.2679489669895645e-7, -0.9999999999999465, 0, 0), (3.267948966434453e-7, 1.0680345496894006e-13, -0.9999999999999465, 0), (0.9999999999998932, 3.267948966434453e-7, 3.2679489669895645e-7, 0), (0.011787, -0.000008, 0.30293600000000004, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+                    }
+
+                    def Xform "insta360_back_optical"
+                    {
+                        matrix4d xformOp:transform = ( (-6.732051033183118e-7, 0.9999999999997733, 0, 0), (-3.267948966433887e-7, -2.2000854263735287e-13, -0.9999999999999465, 0), (-0.99999999999972, -6.732051032627822e-7, 3.2679489669895645e-7, 0), (-0.022365000000000003, -0.000028000000000000003, 0.30285, 1) )
+                        uniform token[] xformOpOrder = ["xformOp:transform"]
+                    }
+                }
+            }
+        }
+    }
+}
+
