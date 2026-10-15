@@ -30,6 +30,24 @@ Isaac Sim: Go2 + Mid-360 + Insta360, езда WASD ──► запись поз
 медиана 14.6 мм, пол вдоль пути покрыт на 91%, гауссианы — PSNR 24.3 дБ на отложенных кадрах.
 
 Машина: Ubuntu 22.04, ROS 2 Humble, Isaac Sim 5.0 в `~/isaacsim`, RTX 5080.
+
+## Благодарности / Credits
+
+Проект собран поверх чужих открытых работ — спасибо авторам:
+
+- **[IsaacLegs](https://github.com/gholibqasobov/IsaacLegs)** (gholibqasobov) — всё движение
+  роботов: двойники Unitree Go2 и G1 в Isaac Sim с графами ROS 2, политики ходьбы, обученные в
+  Isaac Lab, и контроллер `fullbody_controller`. Наш Go2 с надстройкой — их Go2 плюс наш слой
+  с датчиками; `scripts/robot_test.sh` запускает их роботов в наших моделях.
+- **[Livox_MID360_IsaacSim](https://github.com/123tthh/Livox_MID360_IsaacSim)** (123tthh) —
+  модель Mid-360 для Isaac Sim с лепестковой развёрткой.
+- **[RKO-LIO](https://github.com/PRBonn/rko_lio)** (PRBonn) — лидарно-инерциальная одометрия.
+- **[3DGRUT](https://github.com/nv-tlabs/3dgrut)** (NVIDIA) — Gaussian splatting по fisheye и экспорт в NuRec.
+- **[PolyFit](https://github.com/LiangliangNan/PolyFit)** (Liangliang Nan) — оболочка помещения для CAD.
+- **[ATLAS](https://github.com/Eecornwell/atlas-scanner)** (Eecornwell) — образец связки
+  Mid-360 + Insta360 и конфиг RKO-LIO, от которого мы отталкивались.
+- [Open3D](https://www.open3d.org/), [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim), ROS 2.
+
 Все команды — из корня проекта `~/3d_mapping`.
 
 ## Go2 с надстройкой на складе (управление WASD)
@@ -196,10 +214,7 @@ scripts/pipeline.sh walk03 --record       # записать новую и об�
 ниже): `third_party/` (IsaacLegs, Mid-360 для Isaac, 3DGRUT), `assets/isaac/` (Simple Room —
 `scripts/fetch_simple_room.py`), `data/` (записи), `out/` и `scenes/reconstructed/` (результаты).
 
-Чужие проекты, на которых всё стоит: [IsaacLegs](https://github.com/gholibqasobov/IsaacLegs)
-(Go2, G1 и политики ходьбы), [Livox_MID360_IsaacSim](https://github.com/123tthh/Livox_MID360_IsaacSim)
-(модель Mid-360), [RKO-LIO](https://github.com/PRBonn/rko_lio), [3DGRUT](https://github.com/nv-tlabs/3dgrut),
-[PolyFit](https://github.com/LiangliangNan/PolyFit), [Open3D](https://www.open3d.org/), NVIDIA Isaac Sim.
+Чужие проекты, на которых всё стоит, — в разделе «Благодарности» в начале.
 
 Лицензия нашего кода — MIT (`LICENSE`); у чужих проектов — свои.
 
