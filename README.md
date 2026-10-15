@@ -201,6 +201,8 @@ scripts/pipeline.sh walk03 --record       # записать новую и об�
 (модель Mid-360), [RKO-LIO](https://github.com/PRBonn/rko_lio), [3DGRUT](https://github.com/nv-tlabs/3dgrut),
 [PolyFit](https://github.com/LiangliangNan/PolyFit), [Open3D](https://www.open3d.org/), NVIDIA Isaac Sim.
 
+Лицензия нашего кода — MIT (`LICENSE`); у чужих проектов — свои.
+
 ## Установка с нуля (один раз)
 
 ```bash
