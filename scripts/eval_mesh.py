@@ -45,6 +45,22 @@ def gt_floor_level(points, normals, sensor_z, cell=0.2):
     return float(np.median(tops[np.abs(tops - peak) < 0.02]))
 
 
+def normal_errors(mesh, gt, n=300_000, near=0.05):
+    """Угол между поверхностью меша и эталона, град: точки меша с нормалями его треугольников ->
+    ближайший треугольник эталона. Знак нормали не важен. Только точки ближе near к эталону
+    (дальние — уже ошибка положения, не неровность). Бугры на ровном полу/стене дают большой
+    угол, даже когда в среднем поверхность стоит на месте."""
+    mesh.compute_triangle_normals()
+    smp = mesh.sample_points_uniformly(n, use_triangle_normal=True)
+    pts, nrm = np.asarray(smp.points), np.asarray(smp.normals)
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(gt))
+    q = scene.compute_closest_points(o3d.core.Tensor(pts.astype(np.float32)))
+    d = np.linalg.norm(q["points"].numpy() - pts, axis=1)
+    cos = np.abs(np.einsum("ij,ij->i", q["primitive_normals"].numpy(), nrm))
+    return np.degrees(np.arccos(np.clip(cos[d < near], 0.0, 1.0)))
+
+
 def distances(mesh, points):
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
@@ -80,6 +96,7 @@ def main():
 
     rec_pts = np.asarray(mesh.sample_points_uniformly(1_000_000).points)
     acc = distances(gt, rec_pts)
+    nerr = normal_errors(mesh, gt)
 
     gt.compute_triangle_normals()
     gt_sample = gt.sample_points_uniformly(2_000_000, use_triangle_normal=True)
@@ -113,6 +130,9 @@ def main():
         "mesh": str(mdir),
         "gt": str(gt_path),
         "accuracy_median_mm": round(float(np.median(acc)) * 1000, 1),
+        "normal_error_median_deg": round(float(np.median(nerr)), 2),
+        "normal_error_mean_deg": round(float(np.mean(nerr)), 2),
+        "normal_share_within_5deg": share(nerr, 5.0),
         "accuracy_p90_mm": round(float(np.percentile(acc, 90)) * 1000, 1),
         "accuracy_share_within_2cm": share(acc, 0.02),
         "accuracy_share_within_5cm": prec5,

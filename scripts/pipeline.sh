@@ -8,12 +8,16 @@
 # сколько треугольников в цветной модели (по умолчанию 500000); ROOM_SHELL=0 — без оболочки PolyFit,
 # ROOM_SHELL=1 — строить всегда (по умолчанию строится, если план меньше 400 м²: на большом складе
 # PolyFit считает 10–30 минут и всё равно отказывается; коллайдер тогда — сам меш); RKO_VOXEL=1.0 — воксель
-# карты RKO-LIO вручную (по умолчанию — по размеру помещения, см. scripts/rko_config.py).
+# карты RKO-LIO вручную (по умолчанию — по размеру помещения, см. scripts/rko_config.py);
+# REFINE_PASSES=6 — проходов уточнения траектории после RKO-LIO (0 — без него);
+# MESH_DENOISE=10, MESH_TAUBIN=10 — сглаживание меша (билатеральное по нормалям: ровные плоскости
+# с острыми рёбрами, и Таубин); 0 — выключить.
 # Итог: scenes/reconstructed/<сессия>_rko.usda (цветной меш, коллайдер, скрытые слои облака и
 #       коллайдера), out/mesh/<сессия>_rko/: cloud.laz (CloudCompare), mesh_colored.ply, room.step,
 #       plan.dxf/plan.png (CAD, если есть оболочка), cloud.e57; out/compare_<сессия>_rko.png.
 # Журналы шагов — out/logs/<сессия>/. Гауссианы — scripts/process_drive.sh с GS=1 или вручную:
-#   .venv/bin/python scripts/session_to_colmap.py <с> && scripts/train_gs.sh <с>
+#   .venv/bin/python scripts/session_to_colmap.py <с> && .venv/bin/python scripts/refine_cameras.py <с>
+#   scripts/train_gs.sh <с>
 #   .venv/bin/python scripts/gs_scene.py <с> && .venv/bin/python scripts/eval_views.py <с>
 set -e
 S=${1:?укажите имя сессии}
@@ -70,11 +74,17 @@ TUM=$(ls -t out/rko/"$S"_*/"$S"_tum_*.txt 2>/dev/null | grep -v "refined\|_level
 # Низ по силе тяжести за всю запись (без покоя в начале карта иначе наклонена на ~1°).
 run level '^\[level\]' .venv/bin/python scripts/level_trajectory.py "$S" "$TUM"
 TUM=${TUM%.txt}_level.txt
+# Скан к карте из других проходов: убирает «двойные стены» и дрожь поз (ошибка 2.8 -> 1.1 см на складе).
+if [ "${REFINE_PASSES:-6}" != 0 ]; then
+    run refine '^\[refine\] проход '"${REFINE_PASSES:-6}"':' .venv/bin/python scripts/refine_trajectory.py "$S" "$TUM" --iters "${REFINE_PASSES:-6}"
+    TUM=${TUM%.txt}_ref.txt
+fi
 run_isaac eval_odometry 'walked|ate_rmse_m|final_error_m' 'ate_rmse_m' \
     ~/isaacsim/python.sh scripts/eval_odometry.py "$S" "$TUM"
 
 echo "== меш и сравнение с эталоном"
-run build_mesh 'mesh_triangles|floor_filled' .venv/bin/python scripts/build_mesh.py "$S" --tum "$TUM" --depth "${DEPTH:-10}"
+run build_mesh 'mesh_triangles|floor_filled' .venv/bin/python scripts/build_mesh.py "$S" --tum "$TUM" --depth "${DEPTH:-10}" \
+    --denoise "${MESH_DENOISE:-10}" --taubin "${MESH_TAUBIN:-10}"
 if [ -n "$GT" ]; then
     [ -f "$GT" ] || run_isaac export_gt '^\[gt\]' '^\[gt\] .*треугольников' \
         ~/isaacsim/python.sh scripts/export_scene_mesh.py --session "$S"

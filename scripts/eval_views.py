@@ -14,15 +14,17 @@
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import open3d as o3d
 from PIL import Image
-from scipy.ndimage import binary_erosion, gaussian_filter
 from scipy.spatial.transform import Rotation
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from image_metrics import psnr, ssim  # noqa: E402
 
 
 def read_colmap(sparse):
@@ -66,33 +68,18 @@ def render_mesh(scene, colors, tris, R_cw, t_cw, rays_cam, shape):
     return out.reshape(*shape, 3)
 
 
-def psnr(a, b, m):
-    mse = np.mean((a[m] - b[m]) ** 2)
-    return float(10 * np.log10(1.0 / max(mse, 1e-12)))
-
-
-def ssim(a, b, m, sigma=1.5):
-    """SSIM по яркости, окно Гаусса; среднее по маске, сжатой на радиус окна."""
-    ya, yb = a @ [0.299, 0.587, 0.114], b @ [0.299, 0.587, 0.114]
-    mu_a, mu_b = gaussian_filter(ya, sigma), gaussian_filter(yb, sigma)
-    va = gaussian_filter(ya * ya, sigma) - mu_a ** 2
-    vb = gaussian_filter(yb * yb, sigma) - mu_b ** 2
-    cov = gaussian_filter(ya * yb, sigma) - mu_a * mu_b
-    c1, c2 = 0.01 ** 2, 0.03 ** 2
-    s = ((2 * mu_a * mu_b + c1) * (2 * cov + c2)) / ((mu_a ** 2 + mu_b ** 2 + c1) * (va + vb + c2))
-    return float(s[binary_erosion(m, iterations=int(3 * sigma))].mean())
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("session")
     parser.add_argument("--poses", choices=("rko", "gt"), default="rko")
     parser.add_argument("--every", type=int, default=8, help="каждый N-й кадр — отложенный (как в 3DGRUT)")
+    parser.add_argument("--run", help="папка обучения (с runs/ внутри); по умолчанию out/gs/<сессия>_<позы>")
     args = parser.parse_args()
 
     data = ROOT / "data" / "sessions" / args.session / ("colmap" if args.poses == "rko" else "colmap_gt")
-    run = ROOT / "out" / "gs" / f"{args.session}_{args.poses}"
-    renders = sorted(run.glob("runs/**/ours_*/renders"), key=lambda p: int(p.parent.name.split("_")[1]))
+    run = Path(args.run) if args.run else ROOT / "out" / "gs" / f"{args.session}_{args.poses}"
+    # Последний шаг самого свежего обучения (старые прогоны в той же папке не в счёт).
+    renders = sorted(run.glob("runs/**/ours_*/renders"), key=lambda p: (p.parent.parent.stat().st_mtime, int(p.parent.name.split("_")[1])))
     if not renders:
         raise SystemExit(f"нет рендеров отложенных кадров в {run}/runs — обучение не закончилось?")
     renders = renders[-1]

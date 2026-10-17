@@ -100,6 +100,93 @@ def fill_floor(points, normals, voxel, z0, cell=0.05):
     return np.c_[fill_xy, np.full(len(fill_xy), z0)], float(holes.sum() * cell ** 2)
 
 
+def plane_project(points, normals, radius, flat=0.12):
+    """Сглаживание облака перед Poisson: точка -> на плоскость, вписанную по соседям (PCA).
+    Шум и раздвоенные слои от разных проходов (ошибка поз 1–3 см) сходятся в один, бугры уходят.
+
+    Соседи — все точки в 27 вокселях вокруг (воксель radius/3, окрестность ~radius): суммы по
+    вокселям считаются один раз, так что на 10+ млн точек это минута. Только там, где соседи
+    лежат плоско (наименьшая ось — меньше flat от суммы осей): рёбра и углы не трогаем."""
+    v = radius / 3.0
+    origin = points.min(0)
+    rel = points - origin  # суммы квадратов — от ближнего угла, без потери точности
+    keys = np.floor(rel / v).astype(np.int64) + 1  # +1: у соседей слева индекс не уходит в минус
+    dims = keys.max(0) + 2
+
+    def code(k):
+        return (k[:, 0] * dims[1] + k[:, 1]) * dims[2] + k[:, 2]
+
+    codes, inv = np.unique(code(keys), return_inverse=True)
+    inv = inv.ravel()
+    m = len(codes)
+    first = np.zeros(m, np.int64)
+    first[inv] = np.arange(len(points))
+    uniq = keys[first]
+    cnt = np.bincount(inv, minlength=m).astype(np.float64)
+    s1 = np.stack([np.bincount(inv, rel[:, a], minlength=m) for a in range(3)], 1)
+    s2 = np.stack([np.bincount(inv, rel[:, a] * rel[:, b], minlength=m)
+                   for a in range(3) for b in range(3)], 1).reshape(m, 3, 3)
+    N, S1, S2 = np.zeros(m), np.zeros_like(s1), np.zeros_like(s2)
+    for dx in (-1, 0, 1):  # суммы по 27 соседним вокселям
+        for dy in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                q = code(uniq + (dx, dy, dz))
+                pos = np.clip(np.searchsorted(codes, q), 0, m - 1)
+                hit = codes[pos] == q
+                N[hit] += cnt[pos[hit]]
+                S1[hit] += s1[pos[hit]]
+                S2[hit] += s2[pos[hit]]
+    c = S1 / N[:, None]
+    C = S2 / N[:, None, None] - np.einsum("mi,mj->mij", c, c)
+    evals, evecs = np.linalg.eigh(C)
+    ok_vox = (N >= 10) & (evals[:, 0] < flat * np.maximum(evals.sum(1), 1e-12))
+    nrm, cc, ok = evecs[inv, :, 0], c[inv] + origin, ok_vox[inv]
+    proj = points - np.einsum("mi,mi->m", points - cc, nrm)[:, None] * nrm
+    nrm = np.where((np.einsum("mi,mi->m", nrm, normals) < 0)[:, None], -nrm, nrm)  # ориентация — прежняя
+    out, nout = points.copy(), normals.copy()
+    out[ok], nout[ok] = proj[ok], nrm[ok]
+    return out, nout, float(ok.mean())
+
+
+def bilateral_denoise(mesh, normal_iters=5, vertex_iters=10, sigma_r=0.35):
+    """Сглаживание с сохранением рёбер (Zheng и др., Bilateral Normal Filtering for Mesh
+    Denoising, 2011): нормаль грани усредняется по соседним граням (общая вершина) с весом по
+    расстоянию и по сходству нормалей — плоское становится ровным, а ребро между гранями с
+    разными нормалями не размывается; затем вершины подгоняются под новые нормали (Sun и др.,
+    2007). sigma_r — разброс нормалей, который считать «той же плоскостью» (0.35 ≈ 20°)."""
+    from scipy.sparse import csr_matrix
+    V = np.asarray(mesh.vertices).copy()
+    F = np.asarray(mesh.triangles)
+    nf, nv = len(F), len(V)
+    rows, cols = F.ravel(), np.repeat(np.arange(nf), 3)
+    inc = csr_matrix((np.ones(3 * nf, np.float32), (rows, cols)), shape=(nv, nf))
+    adj = (inc.T @ inc).tocoo()
+    fi, fj = adj.row, adj.col
+
+    def faces(V):
+        a, b, c = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
+        cr = np.cross(b - a, c - a)
+        area = np.linalg.norm(cr, axis=1) / 2
+        return cr / np.maximum(2 * area, 1e-12)[:, None], (a + b + c) / 3, area
+
+    n, cen, area = faces(V)
+    dc = np.sum((cen[fi] - cen[fj]) ** 2, 1)
+    sigma_s = np.sqrt(dc[fi != fj].mean())
+    ws = np.exp(-dc / (2 * sigma_s ** 2)) * area[fj]
+    del dc
+    for _ in range(normal_iters):
+        w = ws * np.exp(-np.sum((n[fi] - n[fj]) ** 2, 1) / (2 * sigma_r ** 2))
+        acc = np.stack([np.bincount(fi, w * n[fj, k], minlength=nf) for k in range(3)], 1)
+        n = acc / np.maximum(np.linalg.norm(acc, axis=1, keepdims=True), 1e-12)
+    deg = np.maximum(np.bincount(rows, minlength=nv), 1)[:, None]
+    for _ in range(vertex_iters):
+        cen = V[F].mean(1)
+        d = np.einsum("ij,ij->i", n[cols], cen[cols] - V[rows])[:, None] * n[cols]
+        V = V + np.stack([np.bincount(rows, d[:, k], minlength=nv) for k in range(3)], 1) / deg
+    mesh.vertices = o3d.utility.Vector3dVector(V)
+    return mesh
+
+
 def path_floor_z(tt, pos, legs, window=1.0):
     """Высота пола под датчиком в каждой позе траектории: z датчика минус его высота над
     подошвой опорной ноги в тот же момент (legs.npz), медиана за window секунд — гасит
@@ -183,12 +270,20 @@ def main():
     parser.add_argument("--normal-radius", type=float, default=0.10, help="радиус оценки нормалей, м (шире — устойчивее к толстым слоям)")
     parser.add_argument("--keep-dist", type=float, default=0.05, help="срезать поверхность дальше этого от точек облака, м")
     parser.add_argument("--no-fill-floor", action="store_true", help="не достраивать пол там, где его не видел лидар")
+    parser.add_argument("--smooth-points", type=float, default=0.0,
+                        help="перед Poisson прижать точки к плоскости соседей в этом радиусе, м (0 — нет)")
+    parser.add_argument("--smooth-passes", type=int, default=1, help="сколько раз повторить --smooth-points")
+    parser.add_argument("--taubin", type=int, default=0, help="итераций сглаживания Таубина готового меша (0 — нет)")
+    parser.add_argument("--denoise", type=int, default=0,
+                        help="итераций билатеральной фильтрации нормалей готового меша (0 — нет): ровнее, рёбра острые")
+    parser.add_argument("--denoise-sigma", type=float, default=0.35, help="разброс нормалей «той же плоскости» (0.35 ≈ 20°)")
+    parser.add_argument("--out", help="папка результата; по умолчанию out/mesh/<сессия>_<позы>")
     args = parser.parse_args()
 
     sdir = ROOT / "data" / "sessions" / args.session
     tum = args.tum or latest_tum(args.session)
     refined = args.poses == "rko" and "refined" in Path(tum).name
-    out = ROOT / "out" / "mesh" / (f"{args.session}_{args.poses}" + ("_refined" if refined else ""))
+    out = Path(args.out) if args.out else ROOT / "out" / "mesh" / (f"{args.session}_{args.poses}" + ("_refined" if refined else ""))
     out.mkdir(parents=True, exist_ok=True)
 
     lidar = np.load(sdir / "lidar.npz")
@@ -218,6 +313,10 @@ def main():
     n[flip] *= -1
     pcd.normals = o3d.utility.Vector3dVector(n)
     o3d.io.write_point_cloud(str(out / "cloud.ply"), pcd)  # только то, что видел лидар: по нему eval_mesh судит, что «увидено»
+    smoothed = 0.0
+    for _ in range(args.smooth_points > 0 and args.smooth_passes or 0):
+        sp, n, smoothed = plane_project(np.asarray(pcd.points), n, args.smooth_points)
+        pcd.points, pcd.normals = o3d.utility.Vector3dVector(sp), o3d.utility.Vector3dVector(n)
 
     floor_z = floor_filled = None
     floor_source = "lidar"
@@ -250,6 +349,10 @@ def main():
     sizes = np.asarray(sizes)
     mesh.remove_triangles_by_mask(sizes[np.asarray(clusters)] < 200)  # мелкие обрывки
     mesh.remove_unreferenced_vertices()
+    if args.denoise > 0:
+        mesh = bilateral_denoise(mesh, normal_iters=args.denoise, sigma_r=args.denoise_sigma)
+    if args.taubin > 0:
+        mesh = mesh.filter_smooth_taubin(number_of_iterations=args.taubin)
     mesh.compute_vertex_normals()
     o3d.io.write_triangle_mesh(str(out / "mesh.ply"), mesh)
 
@@ -265,6 +368,11 @@ def main():
         "poisson_depth": args.depth,
         "normal_radius_m": args.normal_radius,
         "keep_dist_m": args.keep_dist,
+        "smooth_points_m": args.smooth_points,
+        "smooth_passes": args.smooth_passes if args.smooth_points > 0 else 0,
+        "smoothed_share": round(smoothed, 3),
+        "taubin_iterations": args.taubin,
+        "denoise_iterations": args.denoise,
         "floor_z_m": None if floor_z is None else round(floor_z, 4),
         "floor_source": floor_source,
         "floor_filled_m2": None if floor_filled is None else round(floor_filled, 2),

@@ -5,7 +5,8 @@
 #   scripts/process_drive.sh sklad01 --skip-render   # перерисовка уже есть — только обработка
 # Поездку записывают так: scripts/go2_warehouse.sh full_warehouse --record sklad01
 # Настройки обработки (DEPTH, TRIANGLES, ROOM_SHELL) — см. шапку scripts/pipeline.sh;
-# перерисовки: SHUTTER=0.25 (снимок раз в N с), IMAGE_SIZE=1920.
+# перерисовки: SHUTTER=0.25 (снимок раз в N с), IMAGE_SIZE=1920; гауссиан: CAMERA_BA=0 — без уточнения
+# поз камер по снимкам (быстрее, но заметно мутнее).
 # Итог:
 #   scenes/reconstructed/<имя>_rko.usda   цветной меш + коллайдер — открыть в Isaac Sim
 #   scenes/reconstructed/<имя>_gs.usda    гауссианы + коллайдер (с GS=1)
@@ -33,10 +34,15 @@ fi
 scripts/pipeline.sh "$N"
 
 if [ "${GS:-0}" != 0 ]; then
-    echo "== Gaussian splatting (около получаса, видеокарта занята целиком)"
+    echo "== Gaussian splatting (около 40 мин: уточнение поз камер по снимкам ~10, обучение ~20; видеокарта занята)"
     .venv/bin/python scripts/session_to_colmap.py "$N" > "$LOGS/colmap.log" 2>&1 || {
         echo "!! набор для обучения не собран — журнал $LOGS/colmap.log:"; tail -5 "$LOGS/colmap.log"; exit 1; }
     grep "^\[colmap\]" "$LOGS/colmap.log" | tail -1 | cut -c1-200
+    if [ "${CAMERA_BA:-1}" != 0 ]; then  # позы камер — по самим снимкам (COLMAP): +6 дБ на складе
+        .venv/bin/python scripts/refine_cameras.py "$N" > "$LOGS/refine_cameras.log" 2>&1 || {
+            echo "!! уточнение поз камер не удалось — журнал $LOGS/refine_cameras.log:"; grep -E "^\[ba\]|Error|error" "$LOGS/refine_cameras.log" | tail -5; exit 1; }
+        grep "^\[ba\] готово" "$LOGS/refine_cameras.log" | cut -c1-200
+    fi
     rm -f "out/gs/${N}_rko/gaussians.usdz"  # чтобы старый файл не сошёл за новый
     scripts/train_gs.sh "$N" > "$LOGS/train_gs.log" 2>&1 || true
     [ -f "out/gs/${N}_rko/gaussians.usdz" ] || {
